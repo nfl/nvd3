@@ -18,6 +18,7 @@ nv.models.scatter = function() {
     , getSize      = function(d) { return d.size || 1} // accessor to get the point size
     , getShape     = function(d) { return d.shape || 'circle' } // accessor to get point shape
     , onlyCircles  = true // Set to false to use shapes
+    , useImages    = false // Set to true, when onlyCircles is false, to use the svg instead of the shape when available
     , forceX       = [] // List of numbers to Force into the X scale (ie. 0, or a max / min, etc.)
     , forceY       = [] // List of numbers to Force into the Y scale
     , forceSize    = [] // List of numbers to Force into the Size scale
@@ -379,6 +380,39 @@ nv.models.scatter = function() {
             .attr('cy', function(d,i) { return nv.utils.NaNtoZero(y(getY(d,i))) })
             .attr('r', function(d,i) { return Math.sqrt(z(getSize(d,i))/Math.PI) });
 
+      } else if (useImages) {
+
+        var points = groups.selectAll('image.nv-point')
+                    .data(function(d) { return d.values });
+        points.enter().append('svg:image')
+            .attr("class", 'nv-point')
+            .attr("xlink:href", function(d) { return d.svg })
+            .attr("width", function(d) { return d.width })
+            .attr("height", function(d) { return d.height })
+            .attr('transform', function(d,i) {
+              return 'translate(' + (x0(getX(d,i)) - d.width/2) + ',' + (y0(getY(d,i)) - d.height/2) + ')'
+            });
+
+        points.exit().remove();
+        groups.exit().selectAll('image.nv-point')
+            .transition()
+            .attr('transform', function(d,i) {
+              return 'translate(' + (x(getX(d,i)) - d.width/2) + ',' + (y(getY(d,i)) - d.height/2) + ')'
+            })
+            .remove();
+        points.each(function(d,i) {
+          d3.select(this)
+            .classed('nv-point', true)
+            .classed('nv-point-' + i, true)
+            .classed('hover',false)
+            ;
+        });
+        points.transition()
+            .attr('transform', function(d,i) {
+              //nv.log(d,i,getX(d,i), x(getX(d,i)));
+              return 'translate(' + (x(getX(d,i)) - d.width/2) + ',' + (y(getY(d,i)) - d.height/2) + ')'
+            });
+
       } else {
 
         var points = groups.selectAll('path.nv-point')
@@ -652,6 +686,12 @@ nv.models.scatter = function() {
   chart.onlyCircles = function(_) {
     if (!arguments.length) return onlyCircles;
     onlyCircles = _;
+    return chart;
+  };
+
+  chart.useImages = function(_) {
+    if (!arguments.length) return useImages;
+    useImages = _;
     return chart;
   };
 
