@@ -4650,7 +4650,8 @@ nv.models.indentedTree = function() {
 
             d3.select(this).select('span')
               .attr('class', d3.functor(column.classes) )
-              .text(function(d) { return column.format ? (d[column.key] ? column.format(d[column.key]) : '-') :  (d[column.key] || '-'); });
+              .text(function(d) { return column.format ? column.format(d) :
+                                        (d[column.key] || '-') });
           });
 
         if  (column.showCount) {
@@ -4958,7 +4959,7 @@ nv.models.indentedTree = function() {
               var legendText = d3.select(this).select('text');
               var nodeTextLength;
               try {
-                nodeTextLength = legendText.getComputedTextLength();
+                nodeTextLength = legendText.node().getComputedTextLength();
                 // If the legendText is display:none'd (nodeTextLength == 0), simulate an error so we approximate, instead
                 if(nodeTextLength <= 0) throw Error();
               }
@@ -6687,6 +6688,7 @@ nv.models.lineWithFocusChart = function() {
                 .map(function(d,i) {
                   return {
                     key: d.key,
+                    area: d.area,
                     values: d.values.filter(function(d,i) {
                       return lines.x()(d,i) >= extent[0] && lines.x()(d,i) <= extent[1];
                     })
@@ -10265,6 +10267,7 @@ nv.models.pie = function() {
     , id = Math.floor(Math.random() * 10000) //Create semi-unique ID in case user doesn't select one
     , color = nv.utils.defaultColor()
     , valueFormat = d3.format(',.2f')
+    , labelFormat = d3.format('%')
     , showLabels = true
     , pieLabelsOutside = true
     , donutLabelsOutside = false
@@ -10472,11 +10475,13 @@ nv.models.pie = function() {
                       Adjust the label's y-position to remove the overlap.
                       */
                       var center = labelsArc.centroid(d);
-                      var hashKey = createHashKey(center);
-                      if (labelLocationHash[hashKey]) {
-                        center[1] -= avgHeight;
+                      if(d.value){
+                        var hashKey = createHashKey(center);
+                        if (labelLocationHash[hashKey]) {
+                          center[1] -= avgHeight;
+                        }
+                        labelLocationHash[createHashKey(center)] = true;
                       }
-                      labelLocationHash[createHashKey(center)] = true;
                       return 'translate(' + center + ')'
                     }
                 });
@@ -10487,7 +10492,7 @@ nv.models.pie = function() {
                   var labelTypes = {
                     "key" : getX(d.data),
                     "value": getY(d.data),
-                    "percent": d3.format('%')(percent)
+                    "percent": labelFormat(percent)
                   };
                   return (d.value && percent > labelThreshold) ? labelTypes[labelType] : '';
                 });
@@ -10646,6 +10651,12 @@ nv.models.pie = function() {
   chart.valueFormat = function(_) {
     if (!arguments.length) return valueFormat;
     valueFormat = _;
+    return chart;
+  };
+
+  chart.labelFormat = function(_) {
+    if (!arguments.length) return labelFormat;
+    labelFormat = _;
     return chart;
   };
 
@@ -10878,9 +10889,9 @@ nv.models.pieChart = function() {
   chart.dispatch = dispatch;
   chart.pie = pie;
 
-  d3.rebind(chart, pie, 'valueFormat', 'values', 'x', 'y', 'description', 'id', 'showLabels', 'donutLabelsOutside', 'pieLabelsOutside', 'labelType', 'donut', 'donutRatio', 'labelThreshold');
+  d3.rebind(chart, pie, 'valueFormat', 'labelFormat', 'values', 'x', 'y', 'description', 'id', 'showLabels', 'donutLabelsOutside', 'pieLabelsOutside', 'labelType', 'donut', 'donutRatio', 'labelThreshold');
   chart.options = nv.utils.optionsFunc.bind(chart);
-  
+
   chart.margin = function(_) {
     if (!arguments.length) return margin;
     margin.top    = typeof _.top    != 'undefined' ? _.top    : margin.top;
@@ -10971,6 +10982,7 @@ nv.models.scatter = function() {
     , getSize      = function(d) { return d.size || 1} // accessor to get the point size
     , getShape     = function(d) { return d.shape || 'circle' } // accessor to get point shape
     , onlyCircles  = true // Set to false to use shapes
+    , useImages    = false // Set to true, when onlyCircles is false, to use the svg instead of the shape when available
     , forceX       = [] // List of numbers to Force into the X scale (ie. 0, or a max / min, etc.)
     , forceY       = [] // List of numbers to Force into the Y scale
     , forceSize    = [] // List of numbers to Force into the Size scale
@@ -11332,6 +11344,39 @@ nv.models.scatter = function() {
             .attr('cy', function(d,i) { return nv.utils.NaNtoZero(y(getY(d,i))) })
             .attr('r', function(d,i) { return Math.sqrt(z(getSize(d,i))/Math.PI) });
 
+      } else if (useImages) {
+
+        var points = groups.selectAll('image.nv-point')
+                    .data(function(d) { return d.values });
+        points.enter().append('svg:image')
+            .attr("class", 'nv-point')
+            .attr("xlink:href", function(d) { return d.svg })
+            .attr("width", function(d) { return d.width })
+            .attr("height", function(d) { return d.height })
+            .attr('transform', function(d,i) {
+              return 'translate(' + (x0(getX(d,i)) - d.width/2) + ',' + (y0(getY(d,i)) - d.height/2) + ')'
+            });
+
+        points.exit().remove();
+        groups.exit().selectAll('image.nv-point')
+            .transition()
+            .attr('transform', function(d,i) {
+              return 'translate(' + (x(getX(d,i)) - d.width/2) + ',' + (y(getY(d,i)) - d.height/2) + ')'
+            })
+            .remove();
+        points.each(function(d,i) {
+          d3.select(this)
+            .classed('nv-point', true)
+            .classed('nv-point-' + i, true)
+            .classed('hover',false)
+            ;
+        });
+        points.transition()
+            .attr('transform', function(d,i) {
+              //nv.log(d,i,getX(d,i), x(getX(d,i)));
+              return 'translate(' + (x(getX(d,i)) - d.width/2) + ',' + (y(getY(d,i)) - d.height/2) + ')'
+            });
+
       } else {
 
         var points = groups.selectAll('path.nv-point')
@@ -11605,6 +11650,12 @@ nv.models.scatter = function() {
   chart.onlyCircles = function(_) {
     if (!arguments.length) return onlyCircles;
     onlyCircles = _;
+    return chart;
+  };
+
+  chart.useImages = function(_) {
+    if (!arguments.length) return useImages;
+    useImages = _;
     return chart;
   };
 
