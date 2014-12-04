@@ -20,6 +20,7 @@ nv.models.multiBarHorizontal = function() {
     , stacked = false
     , showValues = false
     , showBarLabels = false
+    , showBarsAsImages = false //using images makes stacking obsolete, thus making this true, will cause stacked to be false and for controls to be disabled
     , valuePadding = 60
     , valueFormat = d3.format(',.2f')
     , delay = 1200
@@ -163,9 +164,19 @@ nv.models.multiBarHorizontal = function() {
               return 'translate(' + y0(stacked ? d.y0 : 0) + ',' + (stacked ? 0 : (j * x.rangeBand() / data.length ) + x(getX(d,i))) + ')'
           });
 
-      barsEnter.append('rect')
-          .attr('width', 0)
-          .attr('height', x.rangeBand() / (stacked ? 1 : data.length) )
+      if (showBarsAsImages) {
+        barsEnter.append('svg:image')
+          .attr("xlink:href", function(d) { return d.svg })
+          .attr("width", function(d) { return d.width })
+          .attr("height", function(d) { return d.height })
+          .attr("transform", function(d,i) {
+            return "translate(" + (Math.max(y(getY(d,i)) - y(0),1) - d.width/2) + "," + ((x.rangeBand()/data.length/2) - (d.height/2)) + ")";
+          });
+      } else {
+        barsEnter.append('rect')
+            .attr('width', 0)
+            .attr('height', x.rangeBand() / (stacked ? 1 : data.length) )
+      }
 
       bars
           .on('mouseover', function(d,i) { //TODO: figure out why j works above, but not here
@@ -227,7 +238,13 @@ nv.models.multiBarHorizontal = function() {
             .text(function(d,i) { return valueFormat(getY(d,i)) })
         bars.transition()
           .select('text')
-            .attr('x', function(d,i) { return getY(d,i) < 0 ? -4 : y(getY(d,i)) - y(0) + 4 })
+            .attr('x', function(d,i) {
+              if (showBarsAsImages) {
+                return getY(d,i) < 0 ? -4 - d.width/2 : y(getY(d,i)) - y(0) + 4 + d.width / 2;
+              } else {
+                return getY(d,i) < 0 ? -4 : y(getY(d,i)) - y(0) + 4;
+              }
+            })
       } else {
         bars.selectAll('text').text('');
       }
@@ -278,12 +295,20 @@ nv.models.multiBarHorizontal = function() {
               +
               x(getX(d,i)) )
               + ')'
-            })
-          .select('rect')
-            .attr('height', x.rangeBand() / data.length )
-            .attr('width', function(d,i) {
-              return Math.max(Math.abs(y(getY(d,i)) - y(0)),1)
             });
+
+        if (showBarsAsImages) {
+          bars.transition().select('image')
+              .attr('transform', function(d,i) {
+                return 'translate(' + (Math.max(y(getY(d,i)) - y(0),1) - d.width/2) + ',' + ((x.rangeBand()/data.length/2) - (d.height/2)) + ')';
+              });
+        } else {
+          bars.transition().select('rect')
+              .attr('height', x.rangeBand() / data.length )
+              .attr('width', function(d,i) {
+                return Math.max(Math.abs(y(getY(d,i)) - y(0)),1)
+              });
+        }
 
 
       //store old scales for use in transitions on update
@@ -427,6 +452,11 @@ nv.models.multiBarHorizontal = function() {
     return chart;
   };
 
+  chart.showBarsAsImages = function(_) {
+    if (!arguments.length) return showBarsAsImages;
+    showBarsAsImages = _;
+    return chart;
+  };
 
   chart.valueFormat= function(_) {
     if (!arguments.length) return valueFormat;

@@ -357,7 +357,7 @@ nv.models.multiBarHorizontalChart = function() {
   chart.yAxis = yAxis;
 
   d3.rebind(chart, multibar, 'x', 'y', 'xDomain', 'yDomain', 'xRange', 'yRange', 'forceX', 'forceY',
-    'clipEdge', 'id', 'delay', 'showValues','showBarLabels', 'valueFormat', 'stacked', 'barColor');
+    'clipEdge', 'id', 'delay', 'showValues', 'showBarLabels', 'showBarsAsImages', 'valueFormat', 'stacked', 'barColor');
 
   chart.options = nv.utils.optionsFunc.bind(chart);
 
